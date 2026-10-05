@@ -15,6 +15,7 @@ def get_db():
 def init_db():
     conn = get_db()
     conn.executescript(
+        # REVISION MADE AT THE END FOR HANDOFF ERROR
         """
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -46,6 +47,12 @@ def init_db():
             token TEXT PRIMARY KEY,
             user_id INTEGER NOT NULL REFERENCES users(id),
             created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS handoffs (
+            token TEXT PRIMARY KEY,
+            user_id INTEGER NOT NULL REFERENCES users(id),
+            expires_at TEXT NOT NULL
         );
         """
     )

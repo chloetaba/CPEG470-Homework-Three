@@ -1,0 +1,24 @@
+<!--  makes a template for the handoff page 
+    handles the process for a sign in device 
+     oh boy -->
+{% extends "base.html" %}
+{% block title %}Device handoff{% endblock %}
+{% block body %}
+<section class="narrow">
+  {% if mode == "created" %}
+    <h1>Device handoff link</h1>
+    <p class="lede">This link expires in 10 minutes and can be used once. Open it on the other device, then confirm to sign in.</p>
+    <label>
+      <span>One-time link</span>
+      <input type="url" value="{{ handoff_url }}" readonly>
+    </label>
+    <p><a href="{{ handoff_url }}">Open handoff link</a></p>
+  {% else %}
+    <h1>Sign in on this device?</h1>
+    <p class="lede">Confirm to use this one-time handoff link. It will stop working after use or in 10 minutes.</p>
+    <form method="post" action="{{ url_for('redeem_handoff', token=token) }}">
+      <button type="submit">Continue to My bookings</button>
+    </form>
+  {% endif %}
+</section>
+{% endblock %}

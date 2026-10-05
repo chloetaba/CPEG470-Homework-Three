@@ -3,7 +3,8 @@
 {% block body %}
 <section class="narrow wide">
   <h1>My bookings</h1>
-  <p class="lede">Open a booking to read any note the TA left you. Need the same list on another computer? Use the device link at the bottom.</p>
+  <!-- REVISION here: note for signing in -->
+  <p class="lede">Open a booking to read any note the TA left you. To sign in on another device, create a one-time handoff link.</p>
   {% if not bookings %}
     <p class="lede">Nothing held yet. <a href="{{ url_for('home') }}">Grab a slot</a>.</p>
   {% else %}
@@ -18,11 +19,9 @@
       {% endfor %}
     </ul>
   {% endif %}
-  <p class="help">
-    // error here: No session token is available for the TA view, only for the student view.
-    // someone can take advantage by having the device handoff link and accessing the bookings without a session token
-    Device handoff:
-    <a href="{{ url_for('mine', sid=sid) }}">open my bookings on this browser</a>
-  </p>
+  <!-- REVISION HERE: Handoff link -->
+  <form method="post" action="{{ url_for('create_handoff') }}" class="help">
+    <button type="submit">Create device handoff link</button>
+  </form>
 </section>
 {% endblock %}

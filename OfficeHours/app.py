@@ -10,8 +10,9 @@ from seed import seed
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "officehours-dev-secret")
-app.config["SESSION_COOKIE_HTTPONLY"] = False
-app.config["SESSION_COOKIE_SAMESITE"] = None
+#revision made here: added secure session cookie settings
+app.config["SESSION_COOKIE_HTTPONLY"] = True
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 app.config["SESSION_COOKIE_NAME"] = "hold_flash"
 
 
@@ -34,7 +35,8 @@ def login_required(fn):
 def load_user():
     init_db()
     seed()
-    token = request.args.get("sid") or request.cookies.get("hold_session")
+    #revision made here: added secure session cookie settings (again!)
+    token = request.cookies.get("hold_session")
     g.user = None
     g.session_token = None
     if not token:
@@ -55,13 +57,15 @@ def load_user():
 
 
 @app.after_request
+#revision: still ensuring secure session cookie settings after each request
 def persist_session_cookie(response):
     if g.get("session_token"):
         response.set_cookie(
             "hold_session",
             g.session_token,
-            httponly=False,
-            samesite=None,
+            httponly=True,
+            samesite="Lax",
+            secure=request.is_secure,
             path="/",
             max_age=60 * 60 * 24 * 14,
         )
@@ -168,6 +172,81 @@ def logout():
     resp = redirect(url_for("home"))
     resp.delete_cookie("hold_session")
     return resp
+# MAIN REVISION HERE
+# Ensures secure session cookie settings for all responses
+# Handoff is handled securely with no-store cache and no-referrer policy
+
+@app.post("/handoff")
+@login_required
+def create_handoff():
+    if current_user()["role"] != "student":
+        abort(403)
+    token = secrets.token_urlsafe(32)
+    conn = get_db()
+    conn.execute("DELETE FROM handoffs WHERE expires_at <= datetime('now')")
+    conn.execute(
+        "INSERT INTO handoffs (token, user_id, expires_at) "
+        "VALUES (?, ?, datetime('now', '+10 minutes'))",
+        (token, current_user()["id"]),
+    )
+    conn.commit()
+    conn.close()
+    response = app.make_response(
+        render_template(
+            "handoff.html",
+            mode="created",
+            handoff_url=url_for("confirm_handoff", token=token, _external=True),
+        )
+    )
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    return response
+
+
+@app.get("/handoff/<token>")
+def confirm_handoff(token):
+    conn = get_db()
+    handoff = conn.execute(
+        "SELECT 1 FROM handoffs WHERE token = ? AND expires_at > datetime('now')",
+        (token,),
+    ).fetchone()
+    conn.close()
+    if not handoff:
+        flash("That device link has expired or was already used.")
+        return redirect(url_for("login"))
+    response = app.make_response(render_template("handoff.html", mode="confirm", token=token))
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    return response
+
+
+@app.post("/handoff/<token>")
+def redeem_handoff(token):
+    conn = get_db()
+    conn.execute("BEGIN IMMEDIATE")
+    handoff = conn.execute(
+        "SELECT user_id FROM handoffs WHERE token = ? AND expires_at > datetime('now')",
+        (token,),
+    ).fetchone()
+    if not handoff:
+        conn.execute("DELETE FROM handoffs WHERE expires_at <= datetime('now')")
+        conn.commit()
+        conn.close()
+        flash("That device link has expired or was already used.")
+        return redirect(url_for("login"))
+    conn.execute("DELETE FROM handoffs WHERE token = ?", (token,))
+    session_token = secrets.token_hex(24)
+    conn.execute(
+        "INSERT INTO sessions (token, user_id) VALUES (?, ?)",
+        (session_token, handoff["user_id"]),
+    )
+    conn.commit()
+    conn.close()
+    g.session_token = session_token
+    response = redirect(url_for("mine"))
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    return response
 
 
 @app.get("/slots/new")
@@ -260,9 +339,8 @@ def mine():
         (current_user()["id"],),
     ).fetchall()
     conn.close()
-    # this is where the error is as the session token is available for the student view but not for the TA
-    # this means that the TA view will not have access to the session token, only the student view will
-    return render_template("mine.html", bookings=bookings, sid=g.session_token)
+    # error was here but now isn't (removed sid=g.session_token)
+    return render_template("mine.html", bookings=bookings)
 
 
 @app.get("/bookings/<int:booking_id>")
