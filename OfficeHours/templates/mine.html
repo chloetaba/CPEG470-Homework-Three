@@ -19,6 +19,8 @@
     </ul>
   {% endif %}
   <p class="help">
+    // error here: No session token is available for the TA view, only for the student view.
+    // someone can take advantage by having the device handoff link and accessing the bookings without a session token
     Device handoff:
     <a href="{{ url_for('mine', sid=sid) }}">open my bookings on this browser</a>
   </p>

@@ -260,6 +260,8 @@ def mine():
         (current_user()["id"],),
     ).fetchall()
     conn.close()
+    # this is where the error is as the session token is available for the student view but not for the TA
+    # this means that the TA view will not have access to the session token, only the student view will
     return render_template("mine.html", bookings=bookings, sid=g.session_token)
 
 
